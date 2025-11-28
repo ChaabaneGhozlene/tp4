@@ -1,0 +1,47 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ChaabaneGhozlene_TP4Gateway_3idl2
+  cloud:
+    gateway:
+      routes:
+
+           # Route vers Order Service
+        - id: order-service
+          uri: lb://MSX-ORDER
+          predicates:
+            - Path=/api/orders/**   # capture tout ce qui commence par /api/orders
+          filters:
+            # RewritePath qui accepte /api/orders ET /api/orders/{id}
+            - RewritePath=/api/orders(?<segment>/.*)?$, /orders${segment}
+            - AddRequestHeader=X-Gateway, Active
+            - name: LoggingFilter
+
+
+        # Route vers Catalogue Service
+        - id: catalogue-service
+          uri: lb://CATALOGUE-SERVICE
+          predicates:
+            - Path=/api/products/**  # tout ce qui commence par /api/products/
+          filters:
+            - RewritePath=/api/products(?<segment>/.*)?$, /products${segment}
+            - AddRequestHeader=X-Gateway, Active
+            - name: LoggingFilter
+
+        # Route vers Notification Service
+        - id: notification-service
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/api/notify/**   # tout ce qui commence par /api/notify/
+          filters:
+            - RewritePath=/api/notify(?<segment>/.*)?$, /notify${segment}
+            - AddRequestHeader=X-Gateway, Active
+            - name: LoggingFilter
+
+# Configuration Eureka
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

@@ -1,0 +1,15 @@
+server:
+  port: 8761   # Port du serveur Eureka
+
+eureka:
+  client:
+    register-with-eureka: false   # Eureka ne s'enregistre pas lui-même
+    fetch-registry: false          # Pas besoin de récupérer le registre
+  instance:
+    lease-renewal-interval-in-seconds: 10  # envoi du heartbeat toutes les 10 secondes
+    lease-expiration-duration-in-seconds: 30  # considérer DOWN si pas de heartbeat pendant 30 secondes
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

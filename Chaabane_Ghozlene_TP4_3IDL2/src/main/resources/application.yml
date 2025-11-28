@@ -1,0 +1,64 @@
+server:
+  port: 8080
+
+spring:
+  main:
+    web-application-type: servlet
+  application:
+    name: msx-order
+  datasource:
+    url: jdbc:mysql://mysql:3306/orders?createDatabaseIfNotExist=true
+    username: root
+    password: admin
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+rabbitmq:
+  host: rabbitmq
+  port: 5672
+  username: guest
+  password: guest
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+
+  instance:
+    lease-renewal-interval-in-seconds: 10    # heartbeat toutes les 10 secondes
+    lease-expiration-duration-in-seconds: 30 # considérer DOWN si pas de heartbeat pendant 30 secondes
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 500
+        readTimeout: 800
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      catalogueCB:
+        slidingWindowSize: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 4s
+  retry:
+    instances:
+      catalogueRetry:
+        maxAttempts: 3
+        waitDuration: 200ms
+  timelimiter:
+    instances:
+      catalogueTimeout:
+        timeoutDuration: 1s
+
+
+  
+logging:
+  level:
+    root: INFO
+    com.example.demo: DEBUG

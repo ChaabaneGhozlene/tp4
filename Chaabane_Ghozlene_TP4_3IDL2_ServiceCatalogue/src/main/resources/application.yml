@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: catalogue-service
+
+  datasource:
+    url: jdbc:mysql://mysql:3306/produits?createDatabaseIfNotExist=true
+    username: root
+    password: admin
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+  instance:
+    lease-renewal-interval-in-seconds: 10  # envoi du heartbeat toutes les 10 secondes
+    lease-expiration-duration-in-seconds: 30  # considérer DOWN si pas de heartbeat pendant 30 secondes
