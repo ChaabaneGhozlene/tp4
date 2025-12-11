@@ -5,152 +5,218 @@ networks:
     driver: bridge
 
 services:
-  # 1️⃣ Eureka Server
-  eureka-server:
-    build: ../Chaabane_3Idl_EUREKA
-    container_name: eureka-server
+  # ========== MySQL ==========
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_DATABASE: orders
     ports:
-      - "8761:8761"
+      - "3307:3306"  # Port externe changé pour éviter conflit
     networks:
       - msx-net
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-padmin"]
       interval: 10s
-      retries: 10
       timeout: 5s
-    restart: unless-stopped
+      retries: 10
+      start_period: 30s
+    volumes:
+      - mysql-data:/var/lib/mysql
 
-  # 2️⃣ Gateway
-  gateway:
-    build: ../ChaabaneGhozlene_TP4Gateway_3idl2
-    container_name: gateway
+  # ========== MongoDB ==========
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
     ports:
-      - "8080:8080"
-    depends_on:
-      - eureka-server
+      - "27017:27017"
     networks:
       - msx-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - mongodb-data:/data/db
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-    restart: on-failure
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
 
-  # 3️⃣ MSX Order Service
-  msx1:
-    build:
-      context: ../Chaabane_Ghozlene_TP4_3IDL2
-    container_name: msx-order
-    ports:
-      - "8082:8082"
-    depends_on:
-      - mysql
-      - eureka-server
-      - rabbitmq
-    networks:
-      - msx-net
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/orders?createDatabaseIfNotExist=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=admin
-      - SPRING_DATASOURCE_DRIVER-CLASS-NAME=com.mysql.cj.jdbc.Driver
-      - SPRING_JPA_HIBERNATE_DDL-AUTO=update
-      - SPRING_JPA_SHOW-SQL=true
-      - SPRING_RABBITMQ_HOST=rabbitmq
-      - SPRING_RABBITMQ_PORT=5672
-      - SPRING_RABBITMQ_USERNAME=guest
-      - SPRING_RABBITMQ_PASSWORD=guest
-    restart: on-failure
 
-  # 4️⃣ Catalogue Service
-  catalogue-service:
-    build: ../Chaabane_Ghozlene_TP4_3IDL2_ServiceCatalogue
-    container_name: catalogue-service
-    ports:
-      - "8083:8083"
-    depends_on:
-      - eureka-server
-      - mysql
-    networks:
-      - msx-net
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/produits
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=admin
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-    restart: on-failure
-
-  # 5️⃣ Notification Service
-  notification-service:
-    build: ../Chaabane_Ghozlene_TP4_3IDL2_ServiceNotification
-    container_name: notification-service
-    ports:
-      - "8084:8084"
-    depends_on:
-      - eureka-server
-      - rabbitmq
-      - mongodb
-    networks:
-      - msx-net
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      # ⭐ FORCER LA CONFIGURATION MONGODB
-      - SPRING_DATA_MONGODB_URI=mongodb://root:admin@mongodb:27017/notification_db?authSource=admin
-      - SPRING_DATA_MONGODB_DATABASE=notification_db
-      - SPRING_RABBITMQ_HOST=rabbitmq
-      - SPRING_RABBITMQ_PORT=5672
-      - SPRING_RABBITMQ_USERNAME=guest
-      - SPRING_RABBITMQ_PASSWORD=guest
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-    restart: on-failure
-
-    # 6️⃣ RabbitMQ
+  # ========== RabbitMQ ==========
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13-management
     container_name: rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
     networks:
       - msx-net
-    environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
-    restart: on-failure
     healthcheck:
-      test: ["CMD", "rabbitmqctl", "status"]
-      interval: 5s
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
 
-  # 7️⃣ MySQL
-  mysql:
-    image: mysql:8.4.7
-    container_name: mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: admin
-      MYSQL_DATABASE: orders
+  # ========== Eureka Server ==========
+  eureka-server:
+    build:
+      context: ../Chaabane_3Idl_EUREKA
+      dockerfile: Dockerfile
+    container_name: eureka-server
     ports:
-      - "3306:3306"  # ← PAS 3307 !
-
-  # 8️⃣ MongoDB
-  mongodb:
-    image: mongo:6
-    container_name: mongodb
-    ports:
-      - "27017:27017"
+      - "8761:8761"
     networks:
       - msx-net
-    restart: on-failure
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: admin
     healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8761/actuator/health"]
+      interval: "10s"
+      timeout: "5s"
+      retries: 10
+      start_period: "40s"
+
+
+
+  # ========== Gateway ==========
+  gateway:
+    build:
+      context: ../ChaabaneGhozlene_TP4Gateway_3idl2
+      dockerfile: Dockerfile
+    container_name: gateway
+    ports:
+      - "8080:8080"
+    networks:
+      - msx-net
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+
+  # ========== Catalogue Service ==========
+  catalogue-service:
+    build:
+      context: ../Chaabane_Ghozlene_TP4_3IDL2_ServiceCatalogue
+      dockerfile: Dockerfile
+    container_name: catalogue-service
+    environment:
+      - SERVER_PORT=8083
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/produits?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=admin
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    networks:
+      - msx-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    restart: on-failure
+
+  # ========== MSX Order Service (Instance 1) ==========
+  msx-order-1:
+    build:
+      context: ../Chaabane_Ghozlene_TP4_3IDL2
+      dockerfile: Dockerfile
+    container_name: msx-order-1
+    environment:
+      - SERVER_PORT=8081
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/orders?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=admin
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    networks:
+      - msx-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    restart: on-failure
+
+  # ========== MSX Order Service (Instance 2) ==========
+  msx-order-2:
+    build:
+      context: ../Chaabane_Ghozlene_TP4_3IDL2
+      dockerfile: Dockerfile
+    container_name: msx-order-2
+    environment:
+      - SERVER_PORT=8082
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/orders?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=admin
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    networks:
+      - msx-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    restart: on-failure
+
+  # ========== MSX Order Service (Instance 3) ==========
+  msx-order-3:
+    build:
+      context: ../Chaabane_Ghozlene_TP4_3IDL2
+      dockerfile: Dockerfile
+    container_name: msx-order-3
+    environment:
+      - SERVER_PORT=8083
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/orders?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=admin
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    networks:
+      - msx-net
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    restart: on-failure
+
+  # ========== Notification Service ==========
+  notification-service:
+    build:
+      context: ../Chaabane_Ghozlene_TP4_3IDL2_ServiceNotification
+      dockerfile: Dockerfile
+    container_name: notification-service
+    environment:
+      - SERVER_PORT=8084
+      - SPRING_DATA_MONGODB_HOST=mongodb
+      - SPRING_DATA_MONGODB_PORT=27017
+      - SPRING_DATA_MONGODB_DATABASE=notification_db
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    networks:
+      - msx-net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    restart: on-failure
+
+volumes:
+  mysql-data:
+  mongodb-data:
+  rabbitmq-data:
