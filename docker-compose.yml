@@ -5,10 +5,9 @@ networks:
     driver: bridge
 
 services:
-
   # 1️⃣ Eureka Server
   eureka-server:
-    build: ../Chaabane_Ghozlene_TP4_3IDL2_Eureka
+    build: ../Chaabane_3Idl_EUREKA
     container_name: eureka-server
     ports:
       - "8761:8761"
@@ -38,12 +37,13 @@ services:
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
     restart: on-failure
 
+  # 3️⃣ MSX Order Service
   msx1:
     build:
       context: ../Chaabane_Ghozlene_TP4_3IDL2
     container_name: msx-order
     ports:
-      - "8082:8080"
+      - "8082:8082"
     depends_on:
       - mysql
       - eureka-server
@@ -51,18 +51,26 @@ services:
     networks:
       - msx-net
     environment:
-      SPRING_APPLICATION_NAME: msx-order
-      SPRING_PROFILES_ACTIVE: docker
- 
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/orders?createDatabaseIfNotExist=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=admin
+      - SPRING_DATASOURCE_DRIVER-CLASS-NAME=com.mysql.cj.jdbc.Driver
+      - SPRING_JPA_HIBERNATE_DDL-AUTO=update
+      - SPRING_JPA_SHOW-SQL=true
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=guest
+      - SPRING_RABBITMQ_PASSWORD=guest
+    restart: on-failure
 
-  
-
-  # 6️⃣ Catalogue Service
+  # 4️⃣ Catalogue Service
   catalogue-service:
     build: ../Chaabane_Ghozlene_TP4_3IDL2_ServiceCatalogue
     container_name: catalogue-service
     ports:
-      - "8083:8080"
+      - "8083:8083"
     depends_on:
       - eureka-server
       - mysql
@@ -74,60 +82,62 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=admin
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-      - EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS=10
-      - EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS=30
     restart: on-failure
 
-  # 7️⃣ Notification Service
+  # 5️⃣ Notification Service
   notification-service:
     build: ../Chaabane_Ghozlene_TP4_3IDL2_ServiceNotification
     container_name: notification-service
     ports:
-      - "8084:8080"
+      - "8084:8084"
     depends_on:
       - eureka-server
       - rabbitmq
+      - mongodb
     networks:
       - msx-net
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+      # ⭐ FORCER LA CONFIGURATION MONGODB
+      - SPRING_DATA_MONGODB_URI=mongodb://root:admin@mongodb:27017/notification_db?authSource=admin
+      - SPRING_DATA_MONGODB_DATABASE=notification_db
       - SPRING_RABBITMQ_HOST=rabbitmq
       - SPRING_RABBITMQ_PORT=5672
       - SPRING_RABBITMQ_USERNAME=guest
       - SPRING_RABBITMQ_PASSWORD=guest
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
-      - EUREKA_INSTANCE_LEASE_RENEWAL_INTERVAL_IN_SECONDS=10
-      - EUREKA_INSTANCE_LEASE_EXPIRATION_DURATION_IN_SECONDS=30
     restart: on-failure
 
-  # 8️⃣ RabbitMQ
+    # 6️⃣ RabbitMQ
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
     ports:
-      - "5673:5672"
-      - "15673:15672"
+      - "5672:5672"
+      - "15672:15672"
     networks:
       - msx-net
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
     restart: on-failure
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # 9️⃣ MySQL
+  # 7️⃣ MySQL
   mysql:
-    image: mysql:8
+    image: mysql:8.4.7
     container_name: mysql
-    ports:
-      - "3307:3306"
-    networks:
-      - msx-net
     environment:
-      - MYSQL_ROOT_PASSWORD=admin
-      - MYSQL_DATABASE=produits
-    restart: on-failure
+      MYSQL_ROOT_PASSWORD: admin
+      MYSQL_DATABASE: orders
+    ports:
+      - "3306:3306"  # ← PAS 3307 !
 
-  # 🔟 MongoDB
+  # 8️⃣ MongoDB
   mongodb:
     image: mongo:6
     container_name: mongodb
@@ -135,7 +145,12 @@ services:
       - "27017:27017"
     networks:
       - msx-net
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=admin
     restart: on-failure
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: admin
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
